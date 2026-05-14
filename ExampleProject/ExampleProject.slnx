@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="ExampleProject/ExampleProject.csproj" />
+  <Project Path="FrameworkCore/FrameworkCore.csproj" />
+</Solution>

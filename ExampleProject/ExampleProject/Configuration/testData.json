@@ -1,0 +1,14 @@
+{
+    "ValidCredentials": {
+        "Username": "tomsmith",
+        "Password": "SuperSecretPassword!"
+    },
+    "InvalidCredentials": {
+        "Username": "invalid_user",
+        "Password": "invalid_password"
+    },
+    "SearchQueries": {
+        "ValidSearch": "Automation testing best practices",
+        "SpecialCharacters": "!@#$%^&*()"
+    }
+}
