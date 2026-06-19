@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Playwright .runsettings — Configures Playwright NUnit test execution.
+  Usage: dotnet test --settings playwright.runsettings
+
+  Documentation: https://playwright.dev/dotnet/docs/test-runners#running-nunit-tests
+-->
+<RunSettings>
+  <Playwright>
+    <!-- Browser engine: chromium | firefox | webkit -->
+    <BrowserName>chromium</BrowserName>
+
+    <LaunchOptions>
+      <!-- Set to true for CI/headless environments, false for local debugging -->
+      <Headless>false</Headless>
+      <!-- Slow down operations by the specified milliseconds (useful for debugging) -->
+      <SlowMo>0</SlowMo>
+    </LaunchOptions>
+
+    <!-- Default timeout for Expect assertions (ms) -->
+    <ExpectTimeout>15000</ExpectTimeout>
+  </Playwright>
+
+  <!-- NUnit adapter settings -->
+  <NUnit>
+    <!-- Number of test workers (parallel execution). Set to 1 for sequential. -->
+    <NumberOfTestWorkers>1</NumberOfTestWorkers>
+  </NUnit>
+</RunSettings>
