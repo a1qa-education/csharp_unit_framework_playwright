@@ -15,29 +15,36 @@ ExampleProject/                              ← Solution root
 ├── ExampleProject/                          ← Test project (project-specific)
 │   ├── ExampleProject.csproj
 │   ├── Configuration/
-│   │   ├── frameworkSettings.json           ← Environment settings (BaseUrl, browser, timeouts)
+│   │   ├── frameworkSettings.json           ← Environment settings (BaseUrl, timeouts)
 │   │   └── testData.json                    ← Test data (credentials, search queries)
 │   ├── Pages/                               ← Page Objects (inherit BaseForm)
 │   │   ├── LoginPage.cs
-│   │   └── MainPage.cs
-│   ├── Tests/                               ← NUnit test classes
-│   │   └── LoginTests.cs
+│   │   ├── MainPage.cs
+│   │   ├── DropdownPage.cs
+│   │   └── IFramePage.cs
+│   ├── Tests/                               ← NUnit test classes (inherit BaseTest)
+│   │   ├── BaseTest.cs                      ← Shared setup and browser configuration
+│   │   ├── LoginTests.cs
+│   │   ├── ElementsListDemoTests.cs
+│   │   └── DropdownAndIFrameTests.cs
 │   └── playwright.runsettings               ← Playwright NUnit configuration
 │
 └── FrameworkCore/                           ← Reusable framework library
     ├── FrameworkCore.csproj
     ├── Elements/                            ← Typed UI element wrappers
-    │   ├── Interfaces/                      ← IElement, IButton, ITextBox, ILabel, ...
+    │   ├── Interfaces/                      ← IElement, IButton, IElementsList, etc.
     │   ├── BaseElement.cs                   ← Abstract base with Name, State, Click
     │   ├── Button.cs, TextBox.cs, Label.cs
     │   ├── CheckBox.cs, ComboBox.cs
+    │   ├── ElementsList.cs                  ← Wrapper for a list of elements
     │   ├── ElementFactory.cs                ← Creates typed elements from ILocator
     │   └── ElementStateProvider.cs          ← IsDisplayed, WaitForDisplayed, etc.
     ├── Forms/                               ← Page/Form abstraction
     │   ├── Interfaces/                      ← IForm
     │   └── BaseForm.cs                      ← Abstract base with unique locator pattern
     └── Utilities/
-        ├── BrowserUtils.cs                  ← Browser helper (navigate, screenshot, JS, scroll)
+        ├── BrowserUtils.cs                  ← Browser helper (navigate, tabs, downloads)
+        ├── FrameUtils.cs                    ← Helper for resolving locators in IFrames
         ├── ConfigReader.cs                  ← JSON configuration reader
         └── Logger.cs                        ← Console logger via NUnit TestContext
 ```
@@ -50,9 +57,10 @@ ExampleProject/                              ← Solution root
 
 | Concept | Aquality (Selenium) | This Framework (Playwright) |
 |---|---|---|
-| Browser driver | `AqualityServices.Browser` | Playwright `IPage` via NUnit `PageTest` base class |
+| Browser driver | `AqualityServices.Browser` | Playwright `IPage` via `BaseTest` |
 | Page Object base | `Form` / `BaseForm` | `BaseForm` with unique `ILocator` |
-| Element wrappers | `Button`, `TextBox`, etc. via `ElementFactory` | Same — `Button`, `TextBox`, etc. via `ElementFactory` |
+| Element wrappers | `Button`, `TextBox` via `ElementFactory` | Same — `Button`, `TextBox` via `ElementFactory` |
+| List of elements | `IList<IElement>` | `IElementsList<TElement>` |
 | Element state | `element.State.WaitForDisplayed()` | `element.State.WaitForDisplayedAsync()` |
 | Configuration | `settings.json` | `frameworkSettings.json` + `playwright.runsettings` |
 | Logging | Aquality Logger | `Logger.cs` → NUnit `TestContext.Progress` |
@@ -60,7 +68,7 @@ ExampleProject/                              ← Solution root
 
 ### Page Object Model (POM)
 
-Each page is a class inheriting `BaseForm`. Elements are declared as properties using `ElementFactory`:
+Each page is a class inheriting `BaseForm`. Elements are declared as **private** properties using `ElementFactory`, and interaction is exposed via **public** methods:
 
 ```csharp
 public class LoginPage : BaseForm
@@ -72,7 +80,11 @@ public class LoginPage : BaseForm
     private ITextBox UsernameInput => ElementFactory.GetTextBox(Page.Locator("#username"), "Username Field");
     private IButton SubmitButton   => ElementFactory.GetButton(Page.GetByRole(AriaRole.Button, new() { Name = "Login" }), "Submit Button");
 
-    public async Task LoginAsAsync(string username, string password) { /* ... */ }
+    public async Task LoginAsAsync(string username, string password) 
+    { 
+        await UsernameInput.TypeAsync(username);
+        await SubmitButton.ClickAsync();
+    }
 }
 ```
 
@@ -131,24 +143,27 @@ dotnet test --settings ExampleProject/playwright.runsettings
 dotnet test --settings ExampleProject/playwright.runsettings --filter "ClassName=ExampleProject.Tests.LoginTests"
 ```
 
-### Run a specific test method
-
-```bash
-dotnet test --settings ExampleProject/playwright.runsettings --filter "FullyQualifiedName=ExampleProject.Tests.LoginTests.UserCanLoginWithValidCredentials"
-```
-
 ### Run in headed mode (default) vs. headless
 
 Edit `playwright.runsettings` → `<Headless>`:
 - `false` — browser window is visible (default, useful for debugging)
 - `true` — headless execution (recommended for CI)
 
-### Run with a different browser
+### Cross-Browser Testing
 
-Edit `playwright.runsettings` → `<BrowserName>`:
-- `chromium` (default)
-- `firefox`
-- `webkit`
+The framework natively supports running tests on different browsers by specifying the `BROWSER` environment variable. `BaseTest.cs` uses this variable to dynamically select the browser, overriding default settings.
+
+Supported values: `chromium` (default), `firefox`, `webkit`.
+
+**Example (PowerShell):**
+```powershell
+$env:BROWSER="firefox"; dotnet test --settings ExampleProject/playwright.runsettings
+```
+
+**Example (Bash/CI):**
+```bash
+BROWSER=webkit dotnet test --settings ExampleProject/playwright.runsettings
+```
 
 ---
 
@@ -156,13 +171,11 @@ Edit `playwright.runsettings` → `<BrowserName>`:
 
 ### `frameworkSettings.json`
 
-Environment-level settings consumed by `ConfigReader`:
+Framework-specific settings consumed by `ConfigReader` (e.g. environment URL, custom explicit timeouts):
 
 ```json
 {
     "BaseUrl": "https://the-internet.herokuapp.com/",
-    "Browser": "chromium",
-    "Headless": false,
     "Timeouts": {
         "ExplicitWaitMs": 15000,
         "PageLoadMs": 30000
@@ -179,102 +192,55 @@ Test data consumed by `ConfigReader.GetTestDataSection()`:
     "ValidCredentials": {
         "Username": "tomsmith",
         "Password": "SuperSecretPassword!"
-    },
-    "InvalidCredentials": {
-        "Username": "invalid_user",
-        "Password": "invalid_password"
     }
 }
 ```
 
 ### `playwright.runsettings`
 
-Playwright NUnit runtime configuration (browser type, headless mode, timeouts, parallelism). This is the file that directly controls Playwright behavior at test execution time.
+Playwright NUnit runtime configuration (engine, headless mode, assertion timeouts, test parallelization).
 
 ---
 
-## How to Add New Tests
+## Utilities
 
-### 1. Create a Page Object
-
-Create a new class in `ExampleProject/Pages/` inheriting `BaseForm`:
-
-```csharp
-public class MyNewPage : BaseForm
-{
-    public MyNewPage(IPage page)
-        : base(page, page.Locator("#unique-element"), "My New Page")
-    { }
-
-    private IButton SomeButton => ElementFactory.GetButton(Page.Locator("#btn"), "Some Button");
-
-    public async Task ClickSomeButtonAsync()
-    {
-        await SomeButton.ClickAsync();
-    }
-}
-```
-
-### 2. Create a Test Class
-
-Create a new class in `ExampleProject/Tests/` inheriting `PageTest`:
-
-```csharp
-[TestFixture]
-internal class MyNewTests : PageTest
-{
-    private MyNewPage _page;
-
-    [SetUp]
-    public async Task Setup()
-    {
-        string baseUrl = ConfigReader.GetFrameworkSetting<string>("BaseUrl");
-        await Page.GotoAsync($"{baseUrl}my-route");
-        _page = new MyNewPage(Page);
-        await _page.WaitForDisplayedAsync();
-    }
-
-    [Test]
-    public async Task SomeFeatureWorksCorrectly()
-    {
-        await _page.ClickSomeButtonAsync();
-        // Assert...
-    }
-}
-```
-
----
-
-## BrowserUtils
+### BrowserUtils
 
 The `BrowserUtils` static class provides logged convenience methods for common browser operations:
 
 ```csharp
-// Navigation
+// Navigation & Info
 await BrowserUtils.NavigateToAsync(Page, "https://example.com");
 await BrowserUtils.RefreshAsync(Page);
-await BrowserUtils.GoBackAsync(Page);
+string url = BrowserUtils.GetCurrentUrl(Page);
 
-// Screenshots
-await BrowserUtils.TakeScreenshotAsync(Page, "screenshots/login.png");
-
-// JavaScript
-string title = await BrowserUtils.ExecuteJavaScriptAsync<string>(Page, "document.title");
-
-// Scrolling
-await BrowserUtils.ScrollToBottomAsync(Page);
-await BrowserUtils.ScrollIntoViewAsync(someLocator);
-
-// Wait strategies
-await BrowserUtils.WaitForPageLoadAsync(Page);
-await BrowserUtils.WaitForUrlAsync(Page, "**/dashboard");
-
-// Tab management
+// Tabs / Popups
 IPage newTab = await BrowserUtils.OpenNewTabAsync(Context, "https://example.com");
-await BrowserUtils.CloseTabAsync(newTab);
+IPage popup = await BrowserUtils.SwitchToNewTabAsync(Page, () => link.ClickAsync());
+
+// File Downloads
+string filePath = await BrowserUtils.DownloadFileAsync(Page, () => downloadBtn.ClickAsync(), @"C:\Downloads");
+
+// JavaScript & Scrolling
+await BrowserUtils.ExecuteJavaScriptAsync(Page, "window.scrollTo(0, 500)");
+await BrowserUtils.ScrollIntoViewAsync(someLocator);
 
 // Dialog handling (register BEFORE triggering the dialog)
 BrowserUtils.AcceptNextDialog(Page);
+```
+
+### FrameUtils
+
+Provides elegant support for IFrame interactions. Instead of switching contexts, you resolve locators *through* the frame and pass them to the `ElementFactory`.
+
+```csharp
+// In a Page Object:
+private ITextBox EditorTextBox => _elementFactory.GetTextBox(
+    FrameUtils.GetLocatorInFrame(Page, "#mce_0_ifr", "#tinymce"), 
+    "TinyMCE Editor Body");
+
+// Now you can interact with it transparently:
+await EditorTextBox.GetTextAsync();
 ```
 
 ---
@@ -284,10 +250,23 @@ BrowserUtils.AcceptNextDialog(Page);
 | Element | Interface | Key Methods |
 |---|---|---|
 | `Button` | `IButton` | `ClickAsync()` |
-| `TextBox` | `ITextBox` | `TypeAsync(text)`, `ClearAsync()` |
+| `TextBox` | `ITextBox` | `TypeAsync(text)`, `ClearAsync()`, `GetTextAsync()` |
 | `Label` | `ILabel` | `GetTextAsync()` |
 | `CheckBox` | `ICheckBox` | `CheckAsync()`, `UncheckAsync()`, `IsCheckedAsync()` |
-| `ComboBox` | `IComboBox` | `SelectByTextAsync(text)`, `SelectByValueAsync(value)` |
+| `ComboBox` | `IComboBox` | `SelectByTextAsync(text)`, `SelectByValueAsync(value)`, `SelectByIndexAsync(index)`, `GetSelectedOptionTextAsync()` |
+
+### ElementsList
+To work with multiple identical elements (e.g. a list of links), use `IElementsList<T>`:
+
+```csharp
+// In Page Object:
+private IElementsList<Button> MenuLinks => ElementFactory.GetList<Button>(Page.Locator("ul li a"), "Menu Links");
+
+// Usage:
+int count = await MenuLinks.CountAsync();
+IReadOnlyList<string> texts = await MenuLinks.GetTextsAsync();
+await MenuLinks.GetElementByIndex(0).ClickAsync();
+```
 
 All elements inherit from `BaseElement` and expose a `.State` property (`IElementStateProvider`) with:
 - `IsDisplayedAsync()`, `IsExistAsync()`, `IsEnabledAsync()`
