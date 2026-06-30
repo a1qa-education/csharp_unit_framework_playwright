@@ -215,12 +215,64 @@ namespace FrameworkCore.Utilities
         }
 
         /// <summary>
+        /// Waits for a new tab/popup to open as a result of an action (e.g. clicking a target="_blank" link),
+        /// then returns the new IPage instance. The action that triggers the popup must be passed as a parameter.
+        /// </summary>
+        /// <example>
+        /// var newTab = await BrowserUtils.SwitchToNewTabAsync(page, () => linkElement.ClickAsync());
+        /// </example>
+        public static async Task<IPage> SwitchToNewTabAsync(IPage page, Func<Task> triggerAction)
+        {
+            Logger.Info("Waiting for a new tab to open...");
+            IPage newPage = await page.Context.RunAndWaitForPageAsync(async () =>
+            {
+                await triggerAction();
+            });
+            await newPage.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            Logger.Info($"Switched to new tab with URL: {newPage.Url}");
+            return newPage;
+        }
+
+        /// <summary>
         /// Closes the specified page/tab.
         /// </summary>
         public static async Task CloseTabAsync(IPage page)
         {
             Logger.Info($"Closing tab with URL: {page.Url}");
             await page.CloseAsync();
+        }
+
+        // ───────────────────────────────────────────────
+        //  File Download
+        // ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Waits for a file download triggered by an action (e.g. clicking a download button),
+        /// then saves it to the specified directory. Returns the full path to the downloaded file.
+        /// </summary>
+        /// <example>
+        /// string filePath = await BrowserUtils.DownloadFileAsync(page, () => downloadButton.ClickAsync(), "C:\\Downloads");
+        /// </example>
+        public static async Task<string> DownloadFileAsync(IPage page, Func<Task> triggerAction, string saveDirectory)
+        {
+            Logger.Info($"Waiting for file download to start...");
+            IDownload download = await page.RunAndWaitForDownloadAsync(async () =>
+            {
+                await triggerAction();
+            });
+
+            string suggestedFileName = download.SuggestedFilename;
+            Logger.Info($"Download started: {suggestedFileName}");
+
+            if (!Directory.Exists(saveDirectory))
+            {
+                Directory.CreateDirectory(saveDirectory);
+            }
+
+            string savePath = Path.Combine(saveDirectory, suggestedFileName);
+            await download.SaveAsAsync(savePath);
+            Logger.Info($"File downloaded and saved to: {savePath}");
+            return savePath;
         }
 
         // ───────────────────────────────────────────────

@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 
 namespace FrameworkCore.Elements.Interfaces
 {
@@ -6,5 +6,7 @@ namespace FrameworkCore.Elements.Interfaces
     {
         Task SelectByTextAsync(string text);
         Task SelectByValueAsync(string value);
+        Task SelectByIndexAsync(int index);
+        Task<string> GetSelectedOptionTextAsync();
     }
 }

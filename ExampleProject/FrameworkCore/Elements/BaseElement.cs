@@ -23,5 +23,11 @@ namespace FrameworkCore.Elements
             Logger.Info($"Clicking on {GetType().Name} '{Name}'");
             await Locator.ClickAsync();
         }
+
+        public async Task<string> GetTextAsync()
+        {
+            Logger.Info($"Getting text from {GetType().Name} '{Name}'");
+            return await Locator.InnerTextAsync();
+        }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 
 namespace FrameworkCore.Elements.Interfaces
 {
@@ -9,5 +9,6 @@ namespace FrameworkCore.Elements.Interfaces
         IElementStateProvider State { get; }
 
         Task ClickAsync();
+        Task<string> GetTextAsync();
     }
 }

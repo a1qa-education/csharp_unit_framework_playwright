@@ -1,29 +1,24 @@
 using ExampleProject.Pages;
 using FrameworkCore.Utilities;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Playwright.NUnit;
 using NUnit.Framework;
 
 namespace ExampleProject.Tests
 {
-    [TestFixture]
-    internal class LoginTests : PageTest
+    internal class LoginTests : BaseTest
     {
         private LoginPage _loginPage;
 
         [SetUp]
         public async Task Setup()
         {
-            // 1. Pull environment settings dynamically
-            string baseUrl = ConfigReader.GetFrameworkSetting<string>("BaseUrl");
+            // Navigate to the specific test route
+            await Page.GotoAsync($"{BaseUrl}login");
 
-            // 2. Navigate to the specific test route
-            await Page.GotoAsync($"{baseUrl}login");
-
-            // 3. Instantiate the Page Object
+            // Instantiate the Page Object
             _loginPage = new LoginPage(Page);
 
-            // 4. Aquality Pattern: Always ensure the form is fully loaded before test execution begins
+            // Aquality Pattern: Always ensure the form is fully loaded before test execution begins
             await _loginPage.WaitForDisplayedAsync();
         }
 

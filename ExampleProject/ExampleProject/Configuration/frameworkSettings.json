@@ -1,7 +1,5 @@
 {
     "BaseUrl": "https://the-internet.herokuapp.com/",
-    "Browser": "chromium",
-    "Headless": false,
     "Timeouts": {
         "ExplicitWaitMs": 15000,
         "PageLoadMs": 30000

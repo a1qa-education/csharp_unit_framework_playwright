@@ -1,4 +1,4 @@
-﻿using Microsoft.Playwright;
+using Microsoft.Playwright;
 using System;
 using FrameworkCore.Elements.Interfaces;
 
@@ -16,5 +16,10 @@ namespace FrameworkCore.Elements
         public ILabel GetLabel(ILocator locator, string name) => Get<Label>(locator, name);
         public ICheckBox GetCheckBox(ILocator locator, string name) => Get<CheckBox>(locator, name);
         public IComboBox GetComboBox(ILocator locator, string name) => Get<ComboBox>(locator, name);
+
+        public IElementsList<T> GetList<T>(ILocator locator, string name) where T : IElement
+        {
+            return new ElementsList<T>(locator, name);
+        }
     }
 }
